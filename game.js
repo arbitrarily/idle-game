@@ -62,6 +62,16 @@ function mouseClicked() {
       oppositeCorner = { x: random(1, dungeon.width - 2), y: random(1, dungeon.height - 2) };
     }
     dungeon.map[oppositeCorner.y][oppositeCorner.x] = 2;
+
+    // Increase player experience and restore some life
+    let experienceGained = ceil(player.experience * 0.25) + 500;
+    player.experience += experienceGained;
+    if (player.life < player.maxLife) {
+      player.life += 25;
+    }
+    // Reset step count
+    player.numSteps = 0;
+    lastClickedTile = null;
   }
 
   if (lastClickedTile && lastClickedTile.x === clickedTileX && lastClickedTile.y === clickedTileY) {
@@ -70,7 +80,11 @@ function mouseClicked() {
   }
 
   if (player.x / tileSize === clickedTileX && player.y / tileSize === clickedTileY) {
-    // Clicked on the player, ignore
+    // Clicked on the player, restore life if not on cooldown
+    if (player.life < player.maxLife && player.stepsSinceLastClick >= 90) {
+      player.life += 25;
+      player.stepsSinceLastClick = 0;
+    }
     return;
   }
 
@@ -83,10 +97,18 @@ function mouseClicked() {
       return;
     }
     player.move(dx, dy);
+    // Increment step count and check if player should lose life
+    player.numSteps++;
+    if (player.numSteps % 10 === 0 && player.life > 0) {
+      player.life -= 5;
+    }
+    // Increment steps since last click on player
+    player.stepsSinceLastClick++;
   }
 
   lastClickedTile = { x: clickedTileX, y: clickedTileY };
 }
+
 
 
 function keyPressed() {
@@ -121,12 +143,17 @@ class Character {
     this.intelligence = intelligence;
     this.dexterity = dexterity;
     this.life = life;
+    this.maxLife = life; // store the max life to restore the player to full health on click
     this.mana = mana;
     this.width = width;
     this.height = height;
     this.experience = 0;
     this.level = 1;
+    this.numSteps = 0;
     this.experienceRequired = 500;
+    this.stepsSinceLastLifeChange = 0;
+    this.stepsSinceLastClick = 0;
+    this.clickCooldown = 90;
   }
 
   draw() {
@@ -176,6 +203,7 @@ class Character {
     if (this.experience >= this.experienceRequired) {
       this.levelUp();
     }
+
   }
 
   levelUp() {
@@ -207,8 +235,17 @@ class Character {
 
       // Gain experience for moving into a new tile
       this.experience += 5;
+
+      // Increment the number of steps taken
+      this.numSteps++;
+
+      // Subtract 5 life every 10 steps
+      if (this.numSteps % 10 === 0) {
+        this.life -= 5;
+      }
     }
   }
+
 
   isColliding(other) {
     let distance = dist(this.x, this.y, other.x, other.y);
